@@ -1,99 +1,122 @@
-; Executable name: reverse.asm
-; Version	 : 1.0
-; Created date	 : 5/17/2015
-; Last update	 : 7/16/2015
-; Author	 : Jorgen Ordonez
-; Description	 : A simple program in assembly for Linux, using NASM 2.10.01,
-;   demonstrating simple test file I/O (through redirection) for reading an
-;   input file to buffer in blocks of 1024 bytes, placing the blocks on the
-;   by reversing one word of the block and pushing it on the stack then popping
-;   it back into the buffer, this reverse the file. Finally right out the reverse
-;   block to file. This is done for each block so to reverse the file
+; Source file: 		readfile.asm
+; Executable file: 	readfile
+; Version:		1.0
+; Create Date:		07/01/2015
+; Last updated Date:	07/02/2015
+; Author:		king kunta
+; Description:		This program opens a file and prints
+;			contents to screen using glibc functions
 ;
-; Run it this way
-;   reverse > (output file) < (input file)
-;
-; Build using these commands:
-;  nasm -f elf -g -F stabs reverse.asm
-;  ld -o reverse reverse.o
-;
-SECTION .bss			; Section containg uninitialized data
+; Build using these command
+;	nasm -f elf -g -F stabs readfile.asm
+;	gcc readfile.o -o readfile
 
-	BUFFLEN equ 1024	; Length of buffer
-	Buff: resb BUFFLEN	; Text buffer itself
+global Buff
 
-SECTION .data			; Section containing initialized data
+[SECTION .data]		; initialized data section
+      OpenCode db "r",0	; code past to foopen()
+      ErrorMsg db "An error occurred when opening the file.",10,0 ; error message
+      EOF db -1 ; end of file flag
+      RdComplete db "End of file"
+[SECTION .bss]		; uninitialized data section
+      TXTFLEN EQU 1024	; Define lenth of line of text data
+      Buff resb TXTFLEN	; Reserver space for disk-based
 
-SECTION .text			; Section containing program code
+[SECTION .text]		; section contianing program code
 
-	global _start		; Linker entry point
-	
-_start:				
-	nop			; This no-op keeps gdb happy...
-	
-; Read a buffer full of text from stdin:
-Read:
+;; glibc functions imports
+extern fopen
+extern fgets
+extern printf
+extern fclose
+extern fprintf
+extern strlen
 
-	mov eax,3		; Specify sys_read call
-	mov ebx,0		; Specif File Descriptor 0: Standard Input
-	mov ecx,Buff		; Pass offset of buffer to read to
-	mov edx,BUFFLEN		; Pass number of bytes to read at one pass
-	int 80h			; Call sys_read to fill buffer
-	cmp eax,0		; If eax=0, sys_read reached EOF on stdin
-	je Done			; Jump to end progarm for EOF
-	
-; This initialize the counter
-	mov ebp,eax		; store bytes read in ebp to use as counter
-; This part is necessary to find out if the bytes are odd
-	mov esi,eax		; copy to esi for odd byte checking
-	shr esi,1		; check if odd bytes
-	jnc PushBytes		; jump if even bytes
-	
-; If bytes read are odd make even by adding one. This is necessary for tracking the counter
-; correctly
-	add ebp,1			; add one to amount of bytes read
+;; custom function import
+extern RevStr
 
-PushBytes:
-	mov bx, word [Buff+edi] ; copy 2 bytes from buffer offset into ax
-	xchg bh,bl		; exchange halves
-	push bx			; push last 2 bytes at end of buffer
-	add edi,2		; add 2 to edi for traversing the buffer
-	sub ebp,2		; subtract 2 from counter to know when buffer is empty
-	jnz PushBytes		; Jump to read next dword if buffer not empty
-	
-	xor edx,edx		; set ecx to 0
-	
-PopBytes:
-	
-	pop word [Buff+edx]	; pop word into buffer
-	add edx,2		; add 2 to eax to know amount of bytes in buffer
-	sub edi,2		; decrease counter by 2 to know when stack is empty
-	jnz PopBytes		; jump to PushBytes if stack is not empty
-	
-	xor edi,edi		; zero out edi
-	
-; Use mask to mark start of buffer
-	mov edx,eax		; copy bytes read to edi for safe keeping
-	and eax,1		; get odd byte
-	
-	;mov ecx,Buff		; copy buff offset into ecx
-	lea ecx,[Buff+eax]	; copy buff offset into ecx
-	add ecx,eax		; set offset of buffer
-	;mov edx,edi		; calculate actual bytes in buffer
-	
-; write out the bytes from buffer to file
-	mov eax,4		; Specif write_sys call
-	mov ebx,1		; Specify File Descriptor 1: Standard output
-; the location and amount of characters to write were already assigned 
-; hence no need to set the address in ecx and the amount in edx
-	int 80h			; Make sys_write kernel call
-	jmp Read		; jump to read more block if any
-      
-; All done! Let's end this party:
+global main		; entry point
+
+main:
+    nop
+    push ebp		         ; store EBP on stack
+    mov ebp,esp	         ; store ESP value in EBP
+    push ebx		         ; store EBX on stack
+    push esi		         ; store ESI on stack
+    push edi		         ; store EDI on stack
+
+;; Everything before this is boiler plate use it in all ordinary apps
+
+    mov edi,dword [ebp+12] 	; store address of args table in EDI
+    push OpenCode		        ; push address of open-for-read code "r"
+    push dword [edi+4]		  ; push first arg (filename) on the stack
+    call fopen			        ; Attempt to open the file for reading
+    add esp,8			          ; stack cleanup: 2 parms x 4 bytes = 8
+    cmp eax,0			          ; compare 0 to EAX
+    je ErrMsg			          ; jump if error
+    mov ebx,eax			        ; save file handle
+
+ReadBuffer:
+
+    ; read file
+
+    push ebx			; push file handle on stack
+    push dword TXTFLEN		; limit line length of text read
+    push Buff		; push address of text file buffer
+    call fgets			; read a line of text
+    add esp,12			; clean up stack
+
+    push Buff    ; push address of text file buffer
+    call strlen     ; gets the length of the string
+    add esp,4       ; clear the stack
+
+    cmp byte [Buff], 0  ; check if end of line
+    je EOFmsg           ; display end of line message
+
+    call RevStr      ; call RevStr procedure
+
+    xor eax,eax			; saerching for 0 so clear AL to 0
+
+    mov ecx,0x400		; limit search to 1024
+    mov edi,Buff		; copy address of buffer into EDI
+    mov edx,edi			; copy start address into EDX
+
+    ; replace null terminator with new line character
+    cld				; set serach direction to up-memory
+    repne scasb			; sarch for null (0 char) in string at edi
+    mov byte [edi-1],10		; insert a newline character to the end of buffer
+
+    push Buff		; push address of help line on the stack
+    call printf			; prints contains to stdo
+    add esp,4			; cleanup stack
+
+
+    push ebx			; push file handle on stack
+    call fclose			; close teh file whose handle is on the stack
+    add esp,4			; clean up stack
+
+    jmp Done			; jump to skip error message
+
+EOFmsg:
+
+    push RdComplete ; push EOF message on stack to be printed
+    call printf     ; print to screen
+    add esp,4       ; clear stack
+    jmp Done        ; this is not good assembly programming
+
+ErrMsg:
+
+    push ErrorMsg		; push error message on stack to be printed
+    call printf			; print to screen
+    add esp,4			; clean stack
+
 Done:
 
-	mov eax,1		; Code for Exit Syscall
-	mov ebx,0		; Return code of zero
-	int 80h			; Make sys_exit kernel call
-	
-	nop			; makes the debugger happy
+    ;; The following is biler plate as well
+
+    pop edi			; pop EDI from stack
+    pop esi			; pop ESI from stack
+    pop ebx			; pop EBX from stack
+    mov esp,ebp			; copy value in EBP to ESP
+    pop ebp			; pop EBP from stack
+    ret
