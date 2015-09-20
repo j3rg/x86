@@ -18,13 +18,12 @@ SECTION .text			; Section containing program code
 RevStr:
 
 	push ebx
-	push ecx
 	push edx
 	push esi
 
 ; This initialize the counter
 	mov ecx,eax				; store bytes read in ECX to use as counter
-  xor esi,esi       ; initialize ESI to zero to be used later
+	xor esi,esi       ; initialize ESI to zero to be used later
 
 ; This part is necessary to find out if the bytes are odd
 	mov edx,eax				; copy to EDX for odd byte checking
@@ -51,17 +50,16 @@ RevStr:
 	jnz .popBytes						; jump to PushBytes if stack is not empty
 
 	; Use mask to mark start of buffer
-	; and eax,1		; get odd byte
+	and eax,1		; get odd byte
 
 	; notice the below line removes the added by from
 	; the front of the buffer if it was odd
 	; as earlier in the program we added and extra byte
 	; to even off the buffer if it was odd
-	; lea ecx,[Buff+eax]	; copy buff offset into ecx
+	lea ecx,[Buff+eax]	; copy buff offset into ecx
 
 	pop esi
 	pop edx
-	pop ecx
 	pop ebx
 
 	ret
