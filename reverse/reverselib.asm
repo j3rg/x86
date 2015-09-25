@@ -1,3 +1,17 @@
+SECTION .bss			; Section containg uninitialized data
+	ASCIINUM resb 4   ; reserve bytes for input
+SECTION .data			; Section containing initialized data
+	ErrBigNum:  db "Number is greater than or equals to 1000",10
+ 	ErrBigLen: equ $-ErrBigNum
+ 	NUM: db 0x30,0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38,0x39
+ 	;INNUM db 0x3C       ; input number
+SECTION .text			; Section containing program code
+
+	global RevStr		; Declare function as global
+	global GetASCIINum	; Declare function as global
+
+	extern Buff
+
 ; -----------------------------------------------------------------------------
 ; RevStr:        Reverse text
 ; UPDATED:       06/09/2015
@@ -5,15 +19,7 @@
 ; RETURNS:       address of reverse string in ECX
 ; MODIFIES:	     Buff
 ; DESCRIPTION:   This procedure reverse the text given to it.
-
-SECTION .bss			; Section containg uninitialized data
-
-SECTION .data			; Section containing initialized data
-
-SECTION .text			; Section containing program code
-
-	global RevStr		; Linker entry point
-	extern Buff
+;------------------------------------------------------------------------------
 
 RevStr:
 
@@ -63,3 +69,70 @@ RevStr:
 	pop ebx
 
 	ret
+
+; -----------------------------------------------------------------------------
+; GetASCIINum:   Return the ascii equivalent of a hex digit under 1000
+; UPDATED:       25/09/2015
+; IN:            EAX containg the hex number
+; RETURNS:       Ascii value in register ECX
+; MODIFIES:	     Nothing
+; DESCRIPTION:   Return the ascii equivalent of a hex digit under 1000
+;				 with padding zeros.
+;------------------------------------------------------------------------------
+
+GetASCIINum:
+  
+ ; save values of registers on stack before executing
+  push ebx
+
+  cmp eax,0x03E8   ; check if number is greater than 1ooo
+  jge Done         ; give error and exit
+
+
+  ; this line is necessary for zero padding
+  mov dword [ASCIINUM],0x00303030
+
+  cmp eax,0x0A    ; compare to 1
+  jl  .find_1     ; find one
+  cmp eax,0x64    ; compare to 100
+  jl  .find_10    ; find tens
+
+  xor ebx,ebx     ; initialize EBX
+
+.find_100:
+
+  sub eax,0x64    ; subtract 100 from number
+  add ebx,0x01       ; add one to EBX
+  cmp eax,0x64    ; compare to 100
+  jge .find_100   ; jump to find digit in tens decimal place
+
+  mov ecx,[NUM+ebx]
+  mov [ASCIINUM],cl
+
+  cmp eax,0x0A
+  jl .find_1
+
+  xor ebx,ebx
+
+.find_10:
+
+  sub eax,0x0A    ; subtract 100 from number
+  add ebx,0x01       ; add one to EBX
+  cmp eax,0x0A    ; compare to 100
+  jge .find_10    ; jump to find digit in tens decimal place
+
+  mov ecx,[NUM+ebx]
+  mov [ASCIINUM+1],cl
+
+.find_1:
+
+  mov ecx,[NUM+eax]
+  mov [ASCIINUM+2],cl
+
+  mov ecx, [NUM]
+
+Done:
+  
+  pop ebx
+
+  ret
