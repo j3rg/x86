@@ -74,14 +74,14 @@ RevStr:
 ; GetASCIINum:   Return the ascii equivalent of a hex digit under 1000
 ; UPDATED:       25/09/2015
 ; IN:            EAX containg the hex number
-; RETURNS:       Ascii value in register ECX
+; RETURNS:       Pointer to ascii value in register ECX
 ; MODIFIES:	     Nothing
 ; DESCRIPTION:   Return the ascii equivalent of a hex digit under 1000
 ;				 with padding zeros.
 ;------------------------------------------------------------------------------
 
 GetASCIINum:
-  
+
  ; save values of registers on stack before executing
   push ebx
 
@@ -92,12 +92,13 @@ GetASCIINum:
   ; this line is necessary for zero padding
   mov dword [ASCIINUM],0x00303030
 
+	xor ebx,ebx     ; initialize EBX
+	xor ecx,ecx			; initialx ECX(index)
+
   cmp eax,0x0A    ; compare to 1
   jl  .find_1     ; find one
   cmp eax,0x64    ; compare to 100
   jl  .find_10    ; find tens
-
-  xor ebx,ebx     ; initialize EBX
 
 .find_100:
 
@@ -106,7 +107,7 @@ GetASCIINum:
   cmp eax,0x64    ; compare to 100
   jge .find_100   ; jump to find digit in tens decimal place
 
-  mov ecx,[NUM+ebx]
+  mov cl,[NUM+ebx]
   mov [ASCIINUM],cl
 
   cmp eax,0x0A
@@ -121,18 +122,18 @@ GetASCIINum:
   cmp eax,0x0A    ; compare to 100
   jge .find_10    ; jump to find digit in tens decimal place
 
-  mov ecx,[NUM+ebx]
+  mov cl,[NUM+ebx]
   mov [ASCIINUM+1],cl
 
 .find_1:
 
-  mov ecx,[NUM+eax]
+  mov cl,[NUM+eax]
   mov [ASCIINUM+2],cl
 
-  mov ecx, [NUM]
+  mov ecx,ASCIINUM
 
 Done:
-  
+
   pop ebx
 
   ret
