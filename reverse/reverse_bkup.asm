@@ -95,14 +95,14 @@ ReadBuffer:
     call GetASCIINum        ; Get number ascii in address stored in ECX
 
     cld                     ; Clear DF for up-memory Write
-    mov esi,ECX             ; Store source string
-    lea edi,[TmpFile+5]     ; Store address of temp filename string to continue from
+    mov esi,ecx             ; Store source string
+    lea edi,[TmpFile+4]     ; Store address of temp filename string to continue from
     mov ecx,3               ; Move 3 bytes to move number
     rep movsb               ; Copy string
 
     cld                     ; Clear DF for up-memory Write
     mov esi,TmpExt          ; Load source index with extention string of temp file
-    lea edi,[TmpFile+8]     ; Load destination of temp file address
+    lea edi,[TmpFile+7]     ; Load destination of temp file address
     mov ecx,4               ; 4 bytes to move '.tmp'
     rep movsb               ; Copy string
 
@@ -114,8 +114,10 @@ ReadBuffer:
     mov ebx,eax             ; Copy file handle to EBX
     je ErrMsg			          ; Jump if error
 
+    pop ecx                 ; pop reverse string into ECX
+
     push eax                ; Push file handle
-    push esi		            ; Push address of reversed string
+    push ecx		            ; Push address of reversed string
     call fputs			        ; Prints contains to stdo
     add esp,8			          ; Cleanup stack
 
