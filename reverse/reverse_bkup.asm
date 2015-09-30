@@ -14,7 +14,7 @@
 global Buff
 
 [SECTION .data]		; initialized data section
-      OpenCode db "r",0	; used in fopen()
+      ReadCode db "r",0	; used in fopen()
       WriteCode db "w",0 ; used in fopen()
       ErrorMsg db "An error occurred when opening the file.",10,0 ; error message
       EOF db -1 ; end of file flag
@@ -23,7 +23,9 @@ global Buff
 [SECTION .bss]		; uninitialized data section
       TXTFLEN EQU 1024	; Define lenth of line of text data
       Buff resb TXTFLEN	; Reserver space for disk-based
+      TmpBuff resb TXTFLEN ; Reserver sapce for temp buffer
       TmpFile resb 12 ; name of temporary file
+      counter resw 1 ; counter variable
 [SECTION .text]		; section contianing program code
 
 ;; glibc functions imports
@@ -51,14 +53,12 @@ main:
 ;; Everything before this is boiler plate use it in all ordinary apps
 
     mov edi,dword [ebp+12] 	; Store address of args table in EDI
-    push OpenCode		        ; Push address of open-for-read code "r"
+    push ReadCode		        ; Push address of open-for-read code "r"
     push dword [edi+4]		  ; Push first arg (filename) on the stack
     call fopen			        ; Attempt to open the file for reading
     add esp,8			          ; Stack cleanup: 2 parms x 4 bytes = 8
     cmp eax,0			          ; Compare 0 to EAX
     je ErrMsg			          ; Jump if error
-
-    xor edx,edx
 
 ReadBuffer:
 
@@ -71,25 +71,20 @@ ReadBuffer:
     call fgets			        ; Read a line of text
     add esp,12			        ; Clean up stack
 
+    cmp eax,0               ; Check if the length is zero
+    je FileDone             ; Display end of line message
+
     ; Get size of buffer
     push Buff               ; Push address of text file buffer
     call strlen             ; Gets the length of the string
     add esp,4               ; Clear the stack
 
-    cmp byte [Buff], 0      ; Check if end of line
-    je FileDone             ; Display end of line message
-
     call RevStr             ; Call RevStr procedure
     push ecx                ; Save new address of reversed string on stack
 
+    mov edx,[counter]
     inc edx                 ; Increment count of temporary files
-
-    ; Determine temporary filename
-    cld                     ; Clear DF for up-memory Write
-    mov esi,TmpName         ; Load source index with start name of temp file
-    mov edi,TmpFile         ; Load destination of temporary file address
-    mov ecx,5               ; 5 bytes to move 'Temp-'
-    rep movsb               ; Copy string
+    mov word [counter],dx
 
     mov eax,edx             ; Copy temp file number to EAX for GetASCIINum call
     call GetASCIINum        ; Get number ascii in address stored in ECX
@@ -98,6 +93,13 @@ ReadBuffer:
     mov esi,ecx             ; Store source string
     lea edi,[TmpFile+4]     ; Store address of temp filename string to continue from
     mov ecx,3               ; Move 3 bytes to move number
+    rep movsb               ; Copy string
+
+    ; Determine temporary filename
+    cld                     ; Clear DF for up-memory Write
+    mov esi,TmpName         ; Load source index with start name of temp file
+    mov edi,TmpFile         ; Load destination of temporary file address
+    mov ecx,5               ; 5 bytes to move 'Temp-'
     rep movsb               ; Copy string
 
     cld                     ; Clear DF for up-memory Write
@@ -111,8 +113,8 @@ ReadBuffer:
     call fopen			        ; Attempt to open the file for reading
     add esp,8			          ; Stack cleanup: 2 parms x 4 bytes = 8
     cmp eax,0			          ; Compare 0 to EAX
-    mov ebx,eax             ; Copy file handle to EBX
     je ErrMsg			          ; Jump if error
+    mov ebx,eax             ; Copy file handle to EBX
 
     pop ecx                 ; pop reverse string into ECX
 
@@ -131,13 +133,68 @@ ReadBuffer:
 
 FileDone:
 
-    ; Close main file
+    ; Close input file
     pop eax                 ; Restore file handler into EAX
     push eax			          ; Push file handle on stack
     call fclose			        ; Close teh file whose handle is on the stack
     add esp,4			          ; Clean up stack
 
-    jmp Done			          ; Jump to skip error message
+.openTmpFile:
+
+    mov edx,[counter]
+    dec edx                 ; Increment count of temporary files
+    jz  Done
+    mov word [counter],dx
+
+    mov eax,edx             ; Copy temp file number to EAX for GetASCIINum call
+    call GetASCIINum        ; Get number ascii in address stored in ECX
+
+    cld                     ; Clear DF for up-memory Write
+    mov esi,ecx             ; Store source string
+    lea edi,[TmpFile+4]     ; Store address of temp filename string to continue from
+    mov ecx,3               ; Move 3 bytes to move number
+    rep movsb               ; Copy string
+
+    ; Determine temporary filename
+    cld                     ; Clear DF for up-memory Write
+    mov esi,TmpName         ; Load source index with start name of temp file
+    mov edi,TmpFile         ; Load destination of temporary file address
+    mov ecx,5               ; 5 bytes to move 'Temp-'
+    rep movsb               ; Copy string
+
+    push ReadCode           ; Push address of open-for-read code "r"
+    push TmpFile                ; Push first arg (filename) on the stack
+    call fopen                  ; Attempt to open the file for reading
+    add esp,8                     ; Stack cleanup: 2 parms x 4 bytes = 8
+    cmp eax,0                     ; Compare 0 to EAX
+    je ErrMsg                     ; Jump if error
+    mov ebx,eax             ; Copy file handle to EBX
+
+    ; read file
+    push eax                      ; Push file handle on stack
+    push dword TXTFLEN        ; Limit line length of text read
+    push TmpBuff                   ; Push address of text file buffer
+    call fgets                  ; Read a line of text
+    add esp,12                  ; Clean up stack
+
+    push ebx                      ; Push file handle on stack
+    call fclose                 ; Close teh file whose handle is on the stack
+    add esp,4                     ; Clean up stack
+
+    mov edi,dword [ebp+12]     ; Store address of args table in EDI
+    push WriteCode            ; Push address of open-for-read code "r"
+    push dword [edi+8]        ; Push second arg (filename) on the stack
+    call fopen                  ; Attempt to open the file for reading
+    add esp,8                     ; Stack cleanup: 2 parms x 4 bytes = 8
+    cmp eax,0                     ; Compare 0 to EAX
+    je ErrMsg                     ; Jump if error
+    
+    push eax                ; save output file handler on stack
+
+    push eax                ; Push file handle
+    push TmpBuff                ; Push address of string read from tmp file
+    call fputs                  ; Prints contains to stdo
+    add esp,8                     ; Cleanup stack
 
 ErrMsg:
 
@@ -146,6 +203,12 @@ ErrMsg:
     add esp,4			          ; Clean stack
 
 Done:
+    
+    ; Close input file
+    pop eax                 ; Restore file handler into EAX
+    push eax                      ; Push file handle on stack
+    call fclose                 ; Close teh file whose handle is on the stack
+    add esp,4                     ; Clean up stack
 
     ;; The following is biler plate as well
     pop edi			            ; Pop EDI from stack
