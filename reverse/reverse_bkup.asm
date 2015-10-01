@@ -141,10 +141,7 @@ FileDone:
 
 .openTmpFile:
 
-    mov edx,[counter]
-    dec edx                 ; Increment count of temporary files
-    jz  Done
-    mov word [counter],dx
+    mov edx,[counter]       ; Copy the temp file counter into EDX
 
     mov eax,edx             ; Copy temp file number to EAX for GetASCIINum call
     call GetASCIINum        ; Get number ascii in address stored in ECX
@@ -181,6 +178,12 @@ FileDone:
     call fclose                 ; Close teh file whose handle is on the stack
     add esp,4                     ; Clean up stack
 
+    mov edx,[counter]       ; Copy the temp file counter into EDX
+    dec edx                 ; Increment count of temporary files
+    cmp  edx,0              ; Check if is zero or below zero
+    jbe Done                ; Jump to Done if zero or below
+    mov word [counter],dx   ; move value back to counter
+
     mov edi,dword [ebp+12]     ; Store address of args table in EDI
     push WriteCode            ; Push address of open-for-read code "r"
     push dword [edi+8]        ; Push second arg (filename) on the stack
@@ -188,7 +191,7 @@ FileDone:
     add esp,8                     ; Stack cleanup: 2 parms x 4 bytes = 8
     cmp eax,0                     ; Compare 0 to EAX
     je ErrMsg                     ; Jump if error
-    
+
     push eax                ; save output file handler on stack
 
     push eax                ; Push file handle
@@ -203,7 +206,7 @@ ErrMsg:
     add esp,4			          ; Clean stack
 
 Done:
-    
+
     ; Close input file
     pop eax                 ; Restore file handler into EAX
     push eax                      ; Push file handle on stack
