@@ -69,6 +69,8 @@ ReadBuffer:
 .readChars:
 
     ; read file
+    push eax                ; Push file handel one stack for safe-keeping
+
     push eax			          ; Push file handle on stack for getc function call
     call getc			          ; Read a line of text
     add esp,4 			        ; Clean up stack
@@ -79,11 +81,12 @@ ReadBuffer:
     inc edx                 ; increment EDX
     mov [charcount],edx     ; copy incremented index into EDX
 
+    pop eax                 ; pop file handler into EAX
+
     dec ecx                 ; decrement EBX
     jnz .readChars          ; read another character
 
-    ;pop eax                 ; pop file handler into EAX
-    ;push eax                ; push file handler on stack
+    push eax                ; Push file handler on stack for safe-keeping
 
     ; Get size of buffer
     push Buff               ; Push address of text file buffer
@@ -176,42 +179,44 @@ FileDone:
     rep movsb               ; Copy string
 
     push ReadCode           ; Push address of open-for-read code "r"
-    push TmpFile                ; Push first arg (filename) on the stack
-    call fopen                  ; Attempt to open the file for reading
-    add esp,8                     ; Stack cleanup: 2 parms x 4 bytes = 8
-    cmp eax,0                     ; Compare 0 to EAX
-    je ErrMsg                     ; Jump if error
+    push TmpFile            ; Push first arg (filename) on the stack
+    call fopen              ; Attempt to open the file for reading
+    add esp,8               ; Stack cleanup: 2 parms x 4 bytes = 8
+
+    cmp eax,0               ; Compare 0 to EAX
+    je ErrMsg               ; Jump if error
+
     mov ebx,eax             ; Copy file handle to EBX
 
-    xor edx,edx
-    mov [charcount],edx
+    xor edx,edx             ; initialize EDX to zero
+    mov [charcount],edx     ; copy zero in EDX to charcount variable
 
-    mov ecx,TXTFLEN
+    mov ecx,TXTFLEN         ; copy size into TXTFLEN
+
+    push eax                ; Push temp file on stack for safe-keeping
 
 .readTempChars:
 
-    ; read file
+    ; read temp file
     push eax			          ; Push file handle on stack
     call getc			          ; Read a line of text
     add esp,4 			        ; Clean up stack
+
     mov edx,[charcount]
     mov byte [Buff+edx],al  ; Copy character to buffer
     inc edx                 ; increment EDX
+
     mov [charcount],edx
     pop eax                 ; pop file handler into EAX
     push eax                ; push file handler on stack
+
     dec ecx                 ; decrement EBX
-    jnz .readTempChars          ; read another character
+    jnz .readTempChars      ; read another character
 
-    push ebx                      ; Push file handle on stack
-    call fclose                 ; Close teh file whose handle is on the stack
-    add esp,4                     ; Clean up stack
-
-    mov edx,[counter]       ; Copy the temp file counter into EDX
-    dec edx                 ; Increment count of temporary files
-    cmp  edx,0              ; Check if is zero or below zero
-    jbe Done                ; Jump to Done if zero or below
-    mov word [counter],dx   ; move value back to counter
+    ; Finish reading temp file so close the file
+    pop eax                 ; Push file handle on stack
+    call fclose             ; Close teh file whose handle is on the stack
+    add esp,4               ; Clean up stack
 
     mov edi,dword [ebp+12]     ; Store address of args table in EDI
     push WriteCode            ; Push address of open-for-read code "r"
@@ -227,6 +232,14 @@ FileDone:
     push TmpBuff                ; Push address of string read from tmp file
     call fputs                  ; Prints contains to stdo
     add esp,8                     ; Cleanup stack
+
+    ; Drecrease temp file count
+    mov edx,[counter]       ; Copy the temp file counter into EDX
+    dec edx                 ; Decrement count of temporary files
+    cmp  edx,0              ; Check if is zero or below zero
+    jbe Done                ; Jump to Done if zero or below
+
+    mov [counter],edx   ; move value back to counter
 
 ErrMsg:
 
