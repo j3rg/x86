@@ -15,7 +15,7 @@ global Buff
 
 [SECTION .data]		; initialized data section
       ReadCode db "r",0	; used in fopen()
-      WriteCode db "w",0 ; used in fopen()
+      AppendCode db "w",0 ; used in fopen()
       ErrorMsg db "An error occurred when opening the file.",10,0 ; error message
       EOF db -1 ; end of file flag
       TmpName db "Temp-"
@@ -218,28 +218,28 @@ FileDone:
     call fclose             ; Close teh file whose handle is on the stack
     add esp,4               ; Clean up stack
 
-    mov edi,dword [ebp+12]     ; Store address of args table in EDI
-    push WriteCode            ; Push address of open-for-read code "r"
-    push dword [edi+8]        ; Push second arg (filename) on the stack
-    call fopen                  ; Attempt to open the file for reading
-    add esp,8                     ; Stack cleanup: 2 parms x 4 bytes = 8
-    cmp eax,0                     ; Compare 0 to EAX
-    je ErrMsg                     ; Jump if error
+    mov edi,dword [ebp+12]  ; Store address of args table in EDI
+    push AppedCode          ; Push address of open-for-write code "w"
+    push dword [edi+8]      ; Push second arg (filename) on the stack
+    call fopen              ; Attempt to open the file for reading
+    add esp,8               ; Stack cleanup: 2 parms x 4 bytes = 8
+    cmp eax,0               ; Compare 0 to EAX
+    je ErrMsg               ; Jump if error
 
     push eax                ; save output file handler on stack
 
     push eax                ; Push file handle
-    push TmpBuff                ; Push address of string read from tmp file
-    call fputs                  ; Prints contains to stdo
-    add esp,8                     ; Cleanup stack
+    push TmpBuff            ; Push address of string read from tmp file
+    call fputs              ; Prints contains to stdo
+    add esp,8               ; Cleanup stack
 
     ; Drecrease temp file count
     mov edx,[counter]       ; Copy the temp file counter into EDX
     dec edx                 ; Decrement count of temporary files
-    cmp  edx,0              ; Check if is zero or below zero
+    cmp edx,0               ; Check if is zero or below zero
     jbe Done                ; Jump to Done if zero or below
 
-    mov [counter],edx   ; move value back to counter
+    mov [counter],edx       ; move value back to counter
 
 ErrMsg:
 
