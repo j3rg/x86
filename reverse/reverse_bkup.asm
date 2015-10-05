@@ -25,12 +25,13 @@ global Buff
       Buff resb TXTFLEN	; Reserver space for disk-based
       TmpBuff resb TXTFLEN ; Reserver sapce for temp buffer
       TmpFile resb 12 ; name of temporary file
-      counter resw 1 ; counter variable
+      counter resd 1 ; counter variable
+      charcount resd 0 ; char counter
 [SECTION .text]		; section contianing program code
 
 ;; glibc functions imports
 extern fopen
-extern fgets
+extern getc
 extern printf
 extern fclose
 extern fputs
@@ -62,29 +63,42 @@ main:
 
 ReadBuffer:
 
+    mov ecx, TXTFLEN        ; copy buffer size
     push eax                ; Push file handler for safe-keeping
 
-    ; read file
-    push eax			          ; Push file handle on stack
-    push dword TXTFLEN		  ; Limit line length of text read
-    push Buff		            ; Push address of text file buffer
-    call fgets			        ; Read a line of text
-    add esp,12			        ; Clean up stack
+.readChars:
 
-    cmp eax,0               ; Check if the length is zero
-    je FileDone             ; Display end of line message
+    ; read file
+    push eax			          ; Push file handle on stack for getc function call
+    call getc			          ; Read a line of text
+    add esp,4 			        ; Clean up stack
+
+    ; copy char into buffer
+    mov edx,[charcount]     ; move index of string into EDX
+    mov byte [Buff+edx],al  ; Copy character to buffer
+    inc edx                 ; increment EDX
+    mov [charcount],edx     ; copy incremented index into EDX
+
+    dec ecx                 ; decrement EBX
+    jnz .readChars          ; read another character
+
+    ;pop eax                 ; pop file handler into EAX
+    ;push eax                ; push file handler on stack
 
     ; Get size of buffer
     push Buff               ; Push address of text file buffer
     call strlen             ; Gets the length of the string
     add esp,4               ; Clear the stack
 
+    cmp eax,0               ; Check if the length is zero
+    je FileDone             ; Display end of line message
+
     call RevStr             ; Call RevStr procedure
     push ecx                ; Save new address of reversed string on stack
 
     mov edx,[counter]
     inc edx                 ; Increment count of temporary files
-    mov word [counter],dx
+    mov word [counter],edx  ; Copy incremenred value back to counter varible
 
     mov eax,edx             ; Copy temp file number to EAX for GetASCIINum call
     call GetASCIINum        ; Get number ascii in address stored in ECX
@@ -112,22 +126,24 @@ ReadBuffer:
     push TmpFile		        ; Push first arg (filename) on the stack
     call fopen			        ; Attempt to open the file for reading
     add esp,8			          ; Stack cleanup: 2 parms x 4 bytes = 8
+
     cmp eax,0			          ; Compare 0 to EAX
     je ErrMsg			          ; Jump if error
-    mov ebx,eax             ; Copy file handle to EBX
+
+    mov ebx,eax             ; Copy temporary file handle to EBX
 
     pop ecx                 ; pop reverse string into ECX
 
-    push eax                ; Push file handle
+    push eax                ; Push temp file handle
     push ecx		            ; Push address of reversed string
-    call fputs			        ; Prints contains to stdo
+    call fputs			        ; Prints contents to stdo
     add esp,8			          ; Cleanup stack
 
     push ebx			          ; Push file handle on stack
     call fclose			        ; Close teh file whose handle is on the stack
     add esp,4			          ; Clean up stack
 
-    pop eax                 ; Restore file handler into EAX
+    pop eax                 ; Restore input file handler into EAX
 
     jmp ReadBuffer          ; Check for more data
 
@@ -167,12 +183,25 @@ FileDone:
     je ErrMsg                     ; Jump if error
     mov ebx,eax             ; Copy file handle to EBX
 
+    xor edx,edx
+    mov [charcount],edx
+
+    mov ecx,TXTFLEN
+
+.readTempChars:
+
     ; read file
-    push eax                      ; Push file handle on stack
-    push dword TXTFLEN        ; Limit line length of text read
-    push TmpBuff                   ; Push address of text file buffer
-    call fgets                  ; Read a line of text
-    add esp,12                  ; Clean up stack
+    push eax			          ; Push file handle on stack
+    call getc			          ; Read a line of text
+    add esp,4 			        ; Clean up stack
+    mov edx,[charcount]
+    mov byte [Buff+edx],al  ; Copy character to buffer
+    inc edx                 ; increment EDX
+    mov [charcount],edx
+    pop eax                 ; pop file handler into EAX
+    push eax                ; push file handler on stack
+    dec ecx                 ; decrement EBX
+    jnz .readTempChars          ; read another character
 
     push ebx                      ; Push file handle on stack
     call fclose                 ; Close teh file whose handle is on the stack
