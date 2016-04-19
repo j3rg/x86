@@ -18,3 +18,6 @@ Run in the following manner:
 ./reverse <inputfile> <outputfile>
 
 2. timer
+
+As this is my first time using git to manage my project
+let me practice.
