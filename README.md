@@ -21,3 +21,5 @@ Run in the following manner:
 
 As this is my first time using git to manage my project
 let me practice.
+
+Change made here after git add.
